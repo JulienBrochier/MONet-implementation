@@ -49,7 +49,7 @@ for i in range(DATASET_WIDTH):
         ax.add_patch(shape)
     file_name = "img{:d}.png".format(i)
     file_path = os.path.join(DIR_PATH,file_name)
-    plt.savefig(file_path,dpi=14, facecolor='black', bbox_inches = 'tight', pad_inches = 0.)
+    plt.savefig(file_path,dpi=100, facecolor='black', bbox_inches = 'tight', pad_inches = 0.)
     #print(nb_shapes)
     #plt.show()
     plt.clf()

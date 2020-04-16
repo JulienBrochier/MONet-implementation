@@ -9,8 +9,11 @@ from matplotlib import pyplot as plt
 from IPython import display
 from dataset_generator import Data
 
-data_dir = "/data"
+path = os.getcwd()
+data_dir = os.path.join(path,"data")
 data = Data(data_dir)
+dataset = data.dataset
+
 input_size = 256
 
 def get_conv(filters, size, apply_batchnorm=True):
@@ -120,6 +123,37 @@ def get_uncompiled_VAE_tf(input_size):
   latent = tf.multiply(latent,stddev)
   latent = tf.reduce_max(latent, 1)
   x=tf.math.add(latent,mean)
+
+  # Encoder using TFP
+  """   tfd = tfp.distributions
+  encoded_size = 16
+  prior = tfd.Independent(tfd.Normal(loc=tf.zeros(encoded_size), scale=1),
+                          reinterpreted_batch_ndims=1)
+
+  # Encoder
+  tfpl = tfp.layers
+  encoder = tf.keras.Sequential([
+      tf.keras.layers.InputLayer(input_shape=[input_size,input_size,4]),
+      tf.keras.layers.Lambda(lambda x: tf.cast(x, tf.float32) - 0.5),
+      tf.keras.layers.Conv2D(32, 3, strides=1,
+                  padding='same', activation=tf.nn.leaky_relu),
+      tf.keras.layers.Conv2D(32, 3, strides=2,
+                  padding='same', activation=tf.nn.leaky_relu),
+      tf.keras.layers.Conv2D(64, 3, strides=1,
+                  padding='same', activation=tf.nn.leaky_relu),
+      tf.keras.layers.Conv2D(64, 3, strides=2,
+                  padding='same', activation=tf.nn.leaky_relu),
+      tf.keras.layers.Flatten(),
+      tf.keras.layers.Dense(tfpl.MultivariateNormalTriL.params_size(encoded_size),
+                activation=None),
+      tfpl.MultivariateNormalTriL(
+                encoded_size,
+                convert_to_tensor_fn=tfp.distributions.Distribution.sample,
+                activity_regularizer=tfpl.KLDivergenceRegularizer(prior, weight=0.5))
+  ])
+  x = encoder(x)
+  x = x.sample() """
+
 
   # Spatial Broadcast
   x=tf.reshape(x,[1,1,1,16])
