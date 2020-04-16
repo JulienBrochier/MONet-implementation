@@ -7,11 +7,11 @@ import os
 import time
 from matplotlib import pyplot as plt
 from IPython import display
+from dataset_generator import Data
 
-OUTPUT_CHANNELS = 3
-
+data_dir = "/data"
+data = Data(data_dir)
 input_size = 256
-
 
 def get_conv(filters, size, apply_batchnorm=True):
   initializer = tf.random_normal_initializer(0., 0.02)
@@ -140,7 +140,7 @@ def get_uncompiled_VAE_tf(input_size):
 
   return tf.keras.Model(inputs=[mask,image], outputs=x)
 
-def get_compiled_VAE(input_size):
+def get_compiled_models(input_size):
   model = get_uncompiled_VAE_tf(input_size)
   model.compile(optimizer=tf.keras.optimizers.RMSprop(learning_rate=1e-3),
                 loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
@@ -148,5 +148,5 @@ def get_compiled_VAE(input_size):
   return model
 
 
-model = get_uncompiled_VAE_tf(input_size)
+vae = get_uncompiled_VAE_tf(input_size)
 
