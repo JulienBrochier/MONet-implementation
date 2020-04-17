@@ -21,7 +21,7 @@ def create_ellipse(loc,w,color):
     return ellipse
 
 def create_wedge(loc,h,color):
-    wedge = mpatches.Wedge(loc, h/2, random.randint(0,90), random.randint(180,300), color=color)
+    wedge = mpatches.Wedge(loc, h/2, 0, 270, color=color)
     return wedge
 
 shapes = [create_circle,create_rectangle,create_polygon,create_ellipse,create_wedge]
