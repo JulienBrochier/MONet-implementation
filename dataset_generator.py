@@ -11,13 +11,10 @@ class Data():
         onlyfiles = [f for f in os.listdir(data_dir) if os.path.isfile(os.path.join(data_dir, f))]
         for _file in onlyfiles:
             files.append(_file)
-        print(files[0])
         
         image_width = 190
         image_height = 256
-
         channels = 3
-        nb_classes = 1
 
         np_dataset = np.ndarray(shape=(len(files), image_width, image_height, channels),
                             dtype=np.float32)

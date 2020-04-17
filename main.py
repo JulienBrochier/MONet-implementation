@@ -30,83 +30,46 @@ def get_conv(filters, size, apply_batchnorm=True):
 
   return result
 
-def get_uncompiled_Attention_Network(input_size):
+def get_uncompiled_MONet(input_size):
   inputs = tf.keras.layers.Input(shape=[input_size,input_size,3])
   x = inputs
+  skips=[]
 
-  # Downsampling through the model
+  # Downsampling
   x = get_conv(64, 3, apply_batchnorm=False)(x)
   x = get_conv(64, 3)(x)
-  s1 = x
+  skips.append(x)
   x = tf.keras.layers.MaxPooling2D((2,2))(x)
 
-  x = get_conv(128, 3)(x)
-  x = get_conv(128, 3)(x)
-  s2 = x
-  x = tf.keras.layers.MaxPooling2D((2,2))(x)
-
-  x = get_conv(256, 3)(x)
-  x = get_conv(256, 3)(x)
-  s3 = x
-  x = tf.keras.layers.MaxPooling2D((2,2))(x)
-
-  x = get_conv(512, 3)(x)
-  x = get_conv(512, 3)(x)
-  s4 = x
-  x = tf.keras.layers.MaxPooling2D((2,2))(x)
+  for i in range(2,5):
+    x = get_conv(64*i,3)(x)
+    x = get_conv(64*2**i,3)(x)
+    skips.append(x)
+    x = tf.keras.layers.MaxPooling2D((2,2))(x)
 
   # Non-skip connection
-
   x = get_conv(1024, 3)(x)
   x = get_conv(1024, 3)(x)
 
-  # Upsampling and establishing the skip connections
-
-  x = tf.keras.layers.UpSampling2D(size=(2, 2))(x)
-  x = tf.keras.layers.Concatenate()([x, s4])
-
-  x = get_conv(512, 3, apply_batchnorm=False)(x)
-  x = get_conv(512, 3)(x)
-
-  x = tf.keras.layers.UpSampling2D(size=(2, 2))(x)
-  x = tf.keras.layers.Concatenate()([x, s3])
-
-  x = get_conv(256, 3, apply_batchnorm=False)(x)
-  x = get_conv(256, 3)(x)
-
-  x = tf.keras.layers.UpSampling2D(size=(2, 2))(x)
-  x = tf.keras.layers.Concatenate()([x, s2])
-
-  x = get_conv(128, 3, apply_batchnorm=False)(x)
-  x = get_conv(128, 3)(x)
-
-  x = tf.keras.layers.UpSampling2D(size=(2, 2))(x)
-  x = tf.keras.layers.Concatenate()([x, s1])
-
-  x = get_conv(64, 3, apply_batchnorm=False)(x)
-  x = get_conv(64, 3)(x)
+  # Upsampling
+  for i in range(1,5):
+    x = tf.keras.layers.UpSampling2D(size=(2, 2))(x)
+    x = tf.keras.layers.Concatenate()([x, skips[5-i-1]])
+    x = get_conv(64, 3, apply_batchnorm=False)(x)
+    x = get_conv(64*2**(5-i), 3)(x)
 
   x = tf.keras.layers.Conv2D(1, 1, strides=1)(x)
 
-  print(x.shape[0])
-  print(x.shape[1])
-  print(x.shape[2])
-  print(x.shape[3]) 
+  # x shape : (None,256,256,1)
 
-  return tf.keras.Model(inputs=inputs, outputs=x)
 
-#attention_mask_output = tf.maths.log(attention_mask_output)
+  #attention_mask_output = tf.maths.log(attention_mask_output)
+  ### avoid using batch normalization when training VAEs, since the additional stochasticity due to using mini-batches may aggravate instability on top of the stochasticity from sampling.
 
-### avoid using batch normalization when training VAEs, since the additional stochasticity due to using mini-batches may aggravate instability on top of the stochasticity from sampling.
+  x = tf.keras.layers.concatenate([x,inputs])
 
-def get_uncompiled_VAE_tf(input_size):
-  
-  image = tf.keras.layers.Input(shape=[input_size,input_size,3])
-  mask = tf.keras.layers.Input(shape=[input_size,input_size,1])
 
-  x = tf.keras.layers.concatenate([mask,image])
-
-  # Encoder
+  """   # Encoder without TFP
   x = tf.keras.layers.Conv2D(32, (3, 3), strides=2, activation='relu')(x)
   x = tf.keras.layers.Conv2D(32, (3, 3), strides=2, activation='relu')(x)
   x = tf.keras.layers.Conv2D(64, (3, 3), strides=2, activation='relu')(x)
@@ -122,17 +85,17 @@ def get_uncompiled_VAE_tf(input_size):
   latent = tf.random.normal(shape=(16,1))
   latent = tf.multiply(latent,stddev)
   latent = tf.reduce_max(latent, 1)
-  x=tf.math.add(latent,mean)
+  x=tf.math.add(latent,mean) """
 
   # Encoder using TFP
-  """   tfd = tfp.distributions
+  tfd = tfp.distributions
   encoded_size = 16
   prior = tfd.Independent(tfd.Normal(loc=tf.zeros(encoded_size), scale=1),
                           reinterpreted_batch_ndims=1)
 
   # Encoder
   tfpl = tfp.layers
-  encoder = tf.keras.Sequential([
+  vae_encoder = tf.keras.Sequential([
       tf.keras.layers.InputLayer(input_shape=[input_size,input_size,4]),
       tf.keras.layers.Lambda(lambda x: tf.cast(x, tf.float32) - 0.5),
       tf.keras.layers.Conv2D(32, 3, strides=1,
@@ -151,9 +114,8 @@ def get_uncompiled_VAE_tf(input_size):
                 convert_to_tensor_fn=tfp.distributions.Distribution.sample,
                 activity_regularizer=tfpl.KLDivergenceRegularizer(prior, weight=0.5))
   ])
-  x = encoder(x)
-  x = x.sample() """
 
+  x = vae_encoder(x)
 
   # Spatial Broadcast
   x=tf.reshape(x,[1,1,1,16])
@@ -172,15 +134,22 @@ def get_uncompiled_VAE_tf(input_size):
   x = tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='same')(x)
   x = tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='same')(x)
 
-  return tf.keras.Model(inputs=[mask,image], outputs=x)
+  return tf.keras.Model(inputs=inputs, outputs=x)
 
+
+monet = get_uncompiled_MONet(input_size)
+
+
+""" 
 def get_compiled_models(input_size):
-  model = get_uncompiled_VAE_tf(input_size)
+  model = get_uncompiled_MONet(input_size)
   model.compile(optimizer=tf.keras.optimizers.RMSprop(learning_rate=1e-3),
                 loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
                 metrics=['sparse_categorical_accuracy'])
   return model
 
+negative_log_likelihood = lambda x, rv_x: -rv_x.log_prob(x)
 
-vae = get_uncompiled_VAE_tf(input_size)
+monet.compile(optimizer=tf.optimizers.Adam(learning_rate=1e-3),
+            loss=negative_log_likelihood) """
 
