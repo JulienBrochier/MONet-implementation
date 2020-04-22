@@ -7,40 +7,36 @@ class Unet(tf.keras.Model):
     self.input_size = input_size
     self.encoded_size = 16
 
-  def predict(self, inp):
 
+  def call(self, inp, log_sk):
     skips=[]
+    x = tf.keras.layers.Concatenate()([inp,log_sk])
     # Downsampling
-    x = self.get_conv(64, 3, apply_batchnorm=False)(inp)
+    x = self.get_conv(64, 3, apply_batchnorm=False)(x)
     x = self.get_conv(64, 3)(x)
     skips.append(x)
     x = tf.keras.layers.MaxPooling2D((2,2))(x)
-
     for i in range(2,5):
         x = self.get_conv(64*i,3)(x)
         x = self.get_conv(64*2**i,3)(x)
         skips.append(x)
         x = tf.keras.layers.MaxPooling2D((2,2))(x)
-
     # Non-skip connection
     x = self.get_conv(1024, 3)(x)
     x = self.get_conv(1024, 3)(x)
-
     # Upsampling
     for i in range(1,5):
         x = tf.keras.layers.UpSampling2D(size=(2, 2))(x)
         x = tf.keras.layers.Concatenate()([x, skips[5-i-1]])
         x = self.get_conv(64, 3, apply_batchnorm=False)(x)
         x = self.get_conv(64*2**(5-i), 3)(x)
+    ak = tf.keras.layers.Conv2D(1, 1, strides=1, activation=tf.keras.activations.softmax)(x)
+    return self.compute_new_scope_and_mask(ak, log_sk)
 
-    x = tf.keras.layers.Conv2D(1, 1, strides=1)(x)
-
-    return x
 
 
   def get_conv(self,filters, size, apply_batchnorm=True):
     initializer = tf.random_normal_initializer(0., 0.02)
-
     result = tf.keras.Sequential()
     result.add(
         tf.keras.layers.Conv2D(filters, size, strides=1, padding='same',
@@ -49,5 +45,10 @@ class Unet(tf.keras.Model):
         result.add(tf.keras.layers.BatchNormalization())
 
     result.add(tf.keras.layers.LeakyReLU())
-
     return result
+
+  def compute_new_scope_and_mask(self,ak,log_sk):
+      # scope : part of the image that has already been masked
+      #print(mask)
+      #log_sk = tf.math.log(ak)+tf.math.log(1-ak)+log_sk
+      return log_sk
