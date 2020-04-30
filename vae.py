@@ -1,30 +1,32 @@
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-class Vae(tf.keras.Model):
-  def __init__ (self,input_size):
+class Vae(tf.keras.layers.Layer):
+  def __init__ (self,input_width,input_channels,encoded_size):
     super(Vae, self).__init__()
-    self.input_size = input_size
-    self.encoded_size = 16
+    self.input_width = input_width
+    self.input_channels = input_channels
+    self.encoded_size = encoded_size
 
-  def call(self, inp):
-    vae1_out = self.encoder(inp)
-    latent = vae1_out.sample()
-    vae2_out = self.spatial_broadcast(latent)
-    output = self.decoder()(vae2_out)
-    return [latent,output]
+  def call(self, inp, scale):
+    layers = self.encoder()
+    approx_posterior = layers(inp)
+    #print('unet trainable weights:', len(layers.trainable_weights))
+    tiled_output = self.spatial_broadcast(approx_posterior.sample())
+    decoder_likelihood, vae_mask = self.decoder(tiled_output, scale)
+    #self.add_loss(1)
+    return approx_posterior, decoder_likelihood, vae_mask
 
   def prior(self):
     return tfp.distributions.Independent(tfp.distributions.Normal(loc=tf.zeros(self.encoded_size), scale=1),
                             reinterpreted_batch_ndims=1)
 
   #@tf.function
-  def encoder(self, x):
+  def encoder(self):
     ### avoid using batch normalization when training VAEs, since the additional stochasticity due to using mini-batches may aggravate instability on top of the stochasticity from sampling.
 
-    vae_encoder = tf.keras.Sequential([
-        tf.keras.layers.InputLayer(input_shape=[self.input_size,self.input_size,2]),
-        tf.keras.layers.Lambda(lambda x: tf.cast(x, tf.float32) - 0.5),
+    layers = tf.keras.Sequential([
+        tf.keras.layers.InputLayer(input_shape=[self.input_width,self.input_width,self.input_channels+1]),
         tf.keras.layers.Conv2D(32, 3, strides=1,
                     padding='valid', activation=tf.nn.leaky_relu),
         tf.keras.layers.Conv2D(32, 3, strides=2,
@@ -40,27 +42,31 @@ class Vae(tf.keras.Model):
                 self.encoded_size,
                 activity_regularizer=tfp.layers.KLDivergenceRegularizer(self.prior(), weight=1.0))
     ])
-    vae_encoder = tf.keras.Model(inputs=vae_encoder.inputs,
-                    outputs=vae_encoder.outputs[0])
 
-    return vae_encoder(x)
+    return layers
 
   def spatial_broadcast(self,inp):
-    x=tf.reshape(inp,[1,1,1,16])
-    x = tf.tile(x, [1,self.input_size+8,self.input_size+8,1])
-    line = tf.linspace(-1.0,1.0, self.input_size+8)
+    x=tf.reshape(inp,[1,1,1,self.encoded_size])
+    x = tf.tile(x, [1,self.input_width+8,self.input_width+8,1])
+    line = tf.linspace(-1.0,1.0, self.input_width+8)
     x_channel, y_channel = tf.meshgrid(line, line)
-    x_channel = tf.reshape(x_channel, [1,self.input_size+8, self.input_size+8, 1])
-    y_channel = tf.reshape(y_channel, [1,self.input_size+8, self.input_size+8, 1])
+    x_channel = tf.reshape(x_channel, [1,self.input_width+8, self.input_width+8, 1])
+    y_channel = tf.reshape(y_channel, [1,self.input_width+8, self.input_width+8, 1])
     output = tf.keras.layers.Concatenate()([x, x_channel, y_channel])
     return output
 
-  def decoder(self):
-    vae_decoder = tf.keras.Sequential([
-        tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
-        tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
-        tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
-        tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
-        tf.keras.layers.Conv2D(4, (1, 1), strides=1, activation='relu', padding='valid')
+  def decoder(self, x, scale):
+    layers = tf.keras.Sequential([
+      tf.keras.layers.InputLayer(input_shape=[self.input_width+8,self.input_width+8,self.encoded_size+2]),
+      tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
+      tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
+      tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),  
+      tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
+      tf.keras.layers.Conv2D(self.input_channels+1, (1, 1), strides=1, activation='relu', padding='valid')
     ])
-    return vae_decoder
+
+    x = layers(x)
+    image = tfp.distributions.Normal(loc=x[...,:self.input_channels], scale=scale)
+    mask = tfp.distributions.Bernoulli(logits=x[...,self.input_channels:])
+    
+    return image, mask
