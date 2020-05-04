@@ -14,7 +14,6 @@ class Vae(tf.keras.layers.Layer):
     #print('unet trainable weights:', len(layers.trainable_weights))
     tiled_output = self.spatial_broadcast(approx_posterior.sample())
     decoder_likelihood, vae_mask = self.decoder(tiled_output, scale)
-    #self.add_loss(1)
     return approx_posterior, decoder_likelihood, vae_mask
 
   def prior(self):
@@ -24,7 +23,6 @@ class Vae(tf.keras.layers.Layer):
   #@tf.function
   def encoder(self):
     ### avoid using batch normalization when training VAEs, since the additional stochasticity due to using mini-batches may aggravate instability on top of the stochasticity from sampling.
-
     layers = tf.keras.Sequential([
         tf.keras.layers.InputLayer(input_shape=[self.input_width,self.input_width,self.input_channels+1]),
         tf.keras.layers.Conv2D(32, 3, strides=1,

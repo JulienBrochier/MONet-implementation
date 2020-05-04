@@ -4,6 +4,8 @@
 # https://www.tensorflow.org/tutorials/generative/cvae
 # https://towardsdatascience.com/how-to-use-dataset-in-tensorflow-c758ef9e4428
 # 
+import tensorflow as tf
+import tensorflow_probability as tfp
 
 import os
 import time
@@ -12,20 +14,32 @@ from IPython import display
 from dataset_generator import Data
 from monet import Monet
 
+def plot_loss(L1,L2,L3):
+    plt.figure()
+    # L1
+    plt.subplot(131)
+    plt.plot(L1)
+    plt.title("L1")
+    # L2
+    plt.subplot(132)
+    plt.plot(L2)
+    plt.title("L2")
+    # L3
+    plt.subplot(133)
+    plt.plot(L3)
+    plt.title("L3")
+    plt.show()
+
 path = os.getcwd()
 data_dir = os.path.join(path,"data")
 data = Data(data_dir)
 dataset = data.images_ds
 
-l=[]
-for element in dataset.as_numpy_iterator():
-    l.append(element)
-
 input_width = 128
 
-monet = Monet(input_width, input_channels=1)
-monet.compute_apply_gradient(l[0])
-
+monet = Monet(input_width, input_channels=1, nb_scopes=5)
+L1,L2,L3 = monet.train(dataset)
+plot_loss(L1,L2,L3)
 
 
 

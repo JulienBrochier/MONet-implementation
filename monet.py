@@ -6,7 +6,7 @@ from unet import Unet
 from vae import Vae
 
 class Monet(tf.keras.Model):
-  def __init__ (self, input_width, input_channels):
+  def __init__ (self, input_width, input_channels, nb_scopes):
     super(Monet, self).__init__()
     self.input_width = input_width
     self.input_channels = input_channels
@@ -16,9 +16,10 @@ class Monet(tf.keras.Model):
     self.beta = 0.5
     self.gamma = 0.5
     self.optimizer = tf.keras.optimizers.Adam(1e-4)
-    self.first_loss = 0
-    self.second_loss = 0
-    self.nb_scopes = 5
+    self.first_loss = []
+    self.second_loss = []
+    self.third_loss = []
+    self.nb_scopes = nb_scopes
 
   def call(self, image):
     """
@@ -48,7 +49,7 @@ class Monet(tf.keras.Model):
 
   def compute_loss(self, image):
     """
-    Forward Pass + Computation of the loss
+    Forward Pass + Loss Computation
     """
     scale = 0.09  #The "background" component scale, 0.09 at the first iteration, then 0.11 (MONet-$B.1-ComponentVAE)
     # Initialize the first scope
@@ -85,7 +86,7 @@ class Monet(tf.keras.Model):
     x = tf.keras.layers.concatenate([log_mk,image])
     # VAE
     [approx_posterior,decoder_likelihood,vae_mask] = self.vae.call(x, scale)
-    # Fisrt and second loss term computation
+    # First and second loss term computation
     first_loss_term += tf.math.reduce_mean(tf.math.exp(log_mk)) * tf.math.reduce_mean(decoder_likelihood.mean())
     second_loss_term += tfp.distributions.kl_divergence(approx_posterior,prior)
     # Third loss term
@@ -94,10 +95,14 @@ class Monet(tf.keras.Model):
     l_log_mk.append(log_mk)
     l_vae_mask.append(vae_mask_sample)
     third_loss_term = self.compute_third_loss(l_log_mk, l_vae_mask)
+    # Loss lists will be returned by self.train()
+    print(first_loss_term)
+    print(second_loss_term)
+    print(third_loss_term)
+    self.first_loss.append(first_loss_term)
+    self.second_loss.append(second_loss_term)
+    self.third_loss.append(third_loss_term)
 
-    print("L1 : {}".format(first_loss_term))
-    print("L2 : {}".format(second_loss_term))
-    print("L3 : {}".format(third_loss_term))
     return first_loss_term + second_loss_term + third_loss_term
 
   def compute_third_loss(self,l_log_mk, l_vae_mask):
@@ -139,3 +144,12 @@ class Monet(tf.keras.Model):
     return tfp.distributions.MultivariateNormalDiag(
         loc=tf.zeros([self.encoded_size]),
         scale_identity_multiplier=1.0)
+
+  def train(self,dataset):
+    i=1
+    for batch in dataset.as_numpy_iterator():
+      print("Training {}".format(i))
+      self.compute_apply_gradient(batch)
+      i = i+1
+    return self.first_loss, self.second_loss, self.third_loss
+    
