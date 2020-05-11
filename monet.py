@@ -61,6 +61,7 @@ class Monet(tf.keras.Model):
 
     return unet_masks, vae_masks, reconstructed_imgs
 
+  @tf.function
   def compute_loss(self, image):
     """
     Forward Pass + Loss Computation
@@ -116,6 +117,7 @@ class Monet(tf.keras.Model):
 
     return first_loss_term + third_loss_term   #+ second_loss_term
 
+  @tf.function
   def compute_third_loss(self,l_log_mk, l_vae_mask):
     """
     gamma*Dkl(q(c|x) || p(c|z))
@@ -136,6 +138,7 @@ class Monet(tf.keras.Model):
     third_loss_term = tf.math.reduce_mean(third_loss_term)
     return third_loss_term
 
+  @tf.function
   def compute_apply_gradient(self, batch):
     with tf.GradientTape() as tape:
       loss = self.compute_loss(batch)
