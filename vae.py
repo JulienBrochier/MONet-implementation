@@ -7,23 +7,7 @@ class Vae(tf.keras.layers.Layer):
     self.input_width = input_width
     self.input_channels = input_channels
     self.encoded_size = encoded_size
-
-  def call(self, inp, scale):
-    layers = self.encoder()
-    approx_posterior = layers(inp)
-    #print('unet trainable weights:', len(layers.trainable_weights))
-    tiled_output = self.spatial_broadcast(approx_posterior.sample())
-    decoder_likelihood, vae_mask = self.decoder(tiled_output, scale)
-    return approx_posterior, decoder_likelihood, vae_mask
-
-  def prior(self):
-    return tfp.distributions.Independent(tfp.distributions.Normal(loc=tf.zeros(self.encoded_size), scale=1),
-                            reinterpreted_batch_ndims=1)
-
-  #@tf.function
-  def encoder(self):
-    ### avoid using batch normalization when training VAEs, since the additional stochasticity due to using mini-batches may aggravate instability on top of the stochasticity from sampling.
-    layers = tf.keras.Sequential([
+    self.inference_net = tf.keras.Sequential([
         tf.keras.layers.InputLayer(input_shape=[self.input_width,self.input_width,self.input_channels+1]),
         tf.keras.layers.Conv2D(32, 3, strides=1,
                     padding='valid', activation=tf.nn.leaky_relu),
@@ -40,8 +24,28 @@ class Vae(tf.keras.layers.Layer):
                 self.encoded_size,
                 activity_regularizer=tfp.layers.KLDivergenceRegularizer(self.prior(), weight=1.0))
     ])
+    self.generative_net = tf.keras.Sequential([
+      tf.keras.layers.InputLayer(input_shape=[self.input_width+8,self.input_width+8,self.encoded_size+2]),
+      tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
+      tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
+      tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),  
+      tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
+      tf.keras.layers.Conv2D(self.input_channels+1, (1, 1), strides=1, activation='relu', padding='valid')
+    ])
 
-    return layers
+  def call(self, inp, scale):
+    approx_posterior = self.encoder(inp)
+    #print('unet trainable weights:', len(layers.trainable_weights))
+    tiled_output = self.spatial_broadcast(approx_posterior.sample())
+    decoder_likelihood, vae_mask = self.decoder(tiled_output, scale)
+    return approx_posterior, decoder_likelihood, vae_mask
+
+  def prior(self):
+    return tfp.distributions.Independent(tfp.distributions.Normal(loc=tf.zeros(self.encoded_size), scale=1),
+                            reinterpreted_batch_ndims=1)
+
+  def encoder(self,x):
+    return self.inference_net(x)
 
   def spatial_broadcast(self,inp):
     x=tf.reshape(inp,[1,1,1,self.encoded_size])
@@ -54,17 +58,7 @@ class Vae(tf.keras.layers.Layer):
     return output
 
   def decoder(self, x, scale):
-    layers = tf.keras.Sequential([
-      tf.keras.layers.InputLayer(input_shape=[self.input_width+8,self.input_width+8,self.encoded_size+2]),
-      tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
-      tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
-      tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),  
-      tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
-      tf.keras.layers.Conv2D(self.input_channels+1, (1, 1), strides=1, activation='relu', padding='valid')
-    ])
-
-    x = layers(x)
+    x = self.generative_net(x)
     image = tfp.distributions.Normal(loc=x[...,:self.input_channels], scale=scale)
-    mask = tfp.distributions.Bernoulli(logits=x[...,self.input_channels:])
-    
+    mask = tfp.distributions.Bernoulli(logits=x[...,self.input_channels:])    
     return image, mask

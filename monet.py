@@ -1,4 +1,5 @@
 #https://www.tensorflow.org/guide/keras/custom_layers_and_models
+#https://www.tensorflow.org/tutorials/generative/pix2pix
 
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -30,22 +31,35 @@ class Monet(tf.keras.Model):
     log_sk= tf.math.log(s0)
     scale = 0.09  #The "background" component scale, 0.09 at the first iteration, then 0.11 (MONet-$B.1-ComponentVAE)
 
+    unet_masks = []
+    vae_masks = []
+    reconstructed_imgs = []
+
     ## Iterate through the scopes
     for i in range(self.nb_scopes-1):
       # Attention Network
-      log_mk, log_sk = self.unet.call(image,log_sk)
+      log_mk, log_sk = self.unet(image,log_sk)
       x = tf.keras.layers.concatenate([log_mk,image])
       # VAE
-      [approx_posterior,decoder_likelihood,vae_mask] = self.vae.call(x, scale)
+      [approx_posterior,decoder_likelihood,vae_mask] = self.vae(x, scale)
       scale = 0.11
+      # Store outputs
+      unet_masks.append(tf.exp(log_mk))
+      vae_masks.append(vae_mask)
+      reconstructed_imgs.append(decoder_likelihood.sample())
+
     ## Last iteration, mk = sk-1
-      # Attention Network
+    # Attention Network
     log_mk = log_sk
     x = tf.keras.layers.concatenate([log_mk,image])
-      # VAE
-    [approx_posterior,decoder_likelihood,vae_mask] = self.vae.call(x, scale)
+    # VAE
+    [approx_posterior,decoder_likelihood,vae_mask] = self.vae(x, scale)
+    # Store outputs
+    unet_masks.append(tf.exp(log_mk))
+    vae_masks.append(vae_mask)
+    reconstructed_imgs.append(decoder_likelihood.sample())
 
-    return [log_mk, approx_posterior, decoder_likelihood]
+    return unet_masks, vae_masks, reconstructed_imgs
 
   def compute_loss(self, image):
     """
@@ -65,10 +79,10 @@ class Monet(tf.keras.Model):
     ## Iterate through the scopes
     for i in range(self.nb_scopes-1):
       # Attention Network
-      log_mk, log_sk = self.unet.call(image,log_sk)
+      log_mk, log_sk = self.unet(image,log_sk)
       x = tf.keras.layers.concatenate([log_mk,image])
       # VAE
-      [approx_posterior,decoder_likelihood,vae_mask] = self.vae.call(x, scale)
+      [approx_posterior,decoder_likelihood,vae_mask] = self.vae(x, scale)
       # Fisrt and second loss term computation
       first_loss_term += tf.math.reduce_mean(tf.math.exp(log_mk)) * tf.math.reduce_mean(decoder_likelihood.mean())
       second_loss_term += tfp.distributions.kl_divergence(approx_posterior,prior)
@@ -85,7 +99,7 @@ class Monet(tf.keras.Model):
     log_mk = log_sk
     x = tf.keras.layers.concatenate([log_mk,image])
     # VAE
-    [approx_posterior,decoder_likelihood,vae_mask] = self.vae.call(x, scale)
+    [approx_posterior,decoder_likelihood,vae_mask] = self.vae(x, scale)
     # First and second loss term computation
     first_loss_term += tf.math.reduce_mean(tf.math.exp(log_mk)) * tf.math.reduce_mean(decoder_likelihood.mean())
     second_loss_term += tfp.distributions.kl_divergence(approx_posterior,prior)
@@ -96,14 +110,11 @@ class Monet(tf.keras.Model):
     l_vae_mask.append(vae_mask_sample)
     third_loss_term = self.compute_third_loss(l_log_mk, l_vae_mask)
     # Loss lists will be returned by self.train()
-    print(first_loss_term)
-    print(second_loss_term)
-    print(third_loss_term)
     self.first_loss.append(first_loss_term)
     self.second_loss.append(second_loss_term)
     self.third_loss.append(third_loss_term)
 
-    return first_loss_term + second_loss_term + third_loss_term
+    return first_loss_term + third_loss_term   #+ second_loss_term
 
   def compute_third_loss(self,l_log_mk, l_vae_mask):
     """
@@ -112,7 +123,7 @@ class Monet(tf.keras.Model):
     p(c=k|z) : probability for a pixel c to belong to the kth reconstruction mask (the kth mask returned by the VAE)
     """
     vae_global_mask = tf.keras.backend.concatenate(l_vae_mask,axis=-1)
-    unet_global_mask = tf.keras.backend.concatenate(l_log_mk,axis=-1)
+    unet_global_mask = tf.math.exp(tf.keras.backend.concatenate(l_log_mk,axis=-1))
     # Normalize, so sum for each k of q(c=k|x) = 1
     vae_global_mask = tf.nn.softmax(vae_global_mask,axis=-1)
     unet_global_mask = tf.nn.softmax(unet_global_mask,axis=-1)
@@ -130,13 +141,9 @@ class Monet(tf.keras.Model):
       loss = self.compute_loss(batch)
     gradients = tape.gradient(loss, self.trainable_variables)
     self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
-    #print("trainable variables :")
-    #print(self.trainable_variables)
-    #print('unet trainable weights:', len(self.unet.trainable_weights))
-    #print('vae trainable weights:', len(self.vae.trainable_weights))
 
   def make_mixture_prior(self):
-    """
+    """c
     returns a probability distribution of a multivariate 
     normal law for the prior
     Returns p(x)
@@ -145,11 +152,16 @@ class Monet(tf.keras.Model):
         loc=tf.zeros([self.encoded_size]),
         scale_identity_multiplier=1.0)
 
-  def train(self,dataset):
+  def fit(self,dataset,save_path=None):
     i=1
     for batch in dataset.as_numpy_iterator():
       print("Training {}".format(i))
       self.compute_apply_gradient(batch)
       i = i+1
+      if save_path and i%50==0:
+        self.save_weights(save_path+str(i//50))
     return self.first_loss, self.second_loss, self.third_loss
+
+
+
     
