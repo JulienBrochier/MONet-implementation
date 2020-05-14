@@ -87,15 +87,13 @@ class Monet(tf.keras.Model):
       # l1 and l2 computation
       l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * decoder_likelihood.prob(image))
       l2 += tfp.distributions.kl_divergence(approx_posterior,prior)
-      # Store log_mk for normalisation and l3 computation
-      l_log_mk.append(log_mk)
-      l_vae_mask.append(vae_mask.log_prob(image))
+      l3 += tf.math.exp(log_mk) * (log_mk - vae_mask.log_prob(image))
 
       scale = 0.11 #The "background" component scale, 0.09 at the first iteration, then 0.11
 
     l1 = -tf.math.log(l1)
     l2 = self.beta * l2
-    l3 = self.compute_third_loss(l_log_mk,l_vae_mask)
+    l3 = tf.reduce_mean(self.gamma * l3)
     # Loss lists will be used by self.fit()
     self.first_loss.append(l1)
     self.second_loss.append(l2)
@@ -103,16 +101,6 @@ class Monet(tf.keras.Model):
     print("L1 = {}, L2 = {}, L3 = {}".format(l1,l2,l3))
 
     return l1 + l3 #+ l2
-
-  def compute_third_loss(self,l_log_mk,l_vae_mask):
-    log_p = tf.keras.backend.concatenate(l_vae_mask,axis=-1)
-    q = tf.math.exp(tf.keras.backend.concatenate(l_log_mk,axis=-1))
-    # Normalise q(c|x) so sum_over_K( q(c=k|x)=1 )
-    q_sum = tf.reduce_sum(q, axis=-1)
-    q = q / tf.expand_dims(q_sum, -1)
-    # Compute l3
-    l3 = self.gamma * tf.reduce_sum( q*(tf.math.log(q)-log_p), axis=-1)
-    return tf.reduce_mean(l3)
 
   #@tf.function
   def compute_apply_gradient(self, batch):
