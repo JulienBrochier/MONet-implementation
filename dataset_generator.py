@@ -1,11 +1,15 @@
+# https://www.tensorflow.org/guide/data_performance
+# https://code.i-harness.com/fr/docs/tensorflow~guide/performance/datasets_performance
+
 import tensorflow as tf
 from matplotlib import pyplot as plt
+import time
 
 class Data():
 
-    def __init__(self,data_dir):
-        list_ds = tf.data.Dataset.list_files("*.png")
-        self.images_ds = list_ds.map(self.parse_image)
+    def __init__(self,data_dir,batch_size):
+        self.list_ds = tf.data.Dataset.list_files("*.png")
+        self.images_ds = self.list_ds.map(self.parse_image).cache()
 
     def parse_image(self,filename):
         image = tf.io.read_file(filename)
@@ -20,5 +24,4 @@ class Data():
         plt.imshow(image)
         plt.axis('off')
         plt.show()
-
 

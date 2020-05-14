@@ -6,10 +6,11 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 class Unet(tf.keras.layers.Layer):
-  def __init__ (self,input_width, input_channels):
+  def __init__ (self,input_width, input_channels,batch_size):
     super(Unet, self).__init__()
     self.input_width = input_width
     self.input_channels = input_channels
+    self.batch_size = batch_size
     self.downsampling_layers = []
     self.downsampling_layers_output_channels = [[64,64],[128,128],[256,256],[512,512]]
     self.downsampling_layers_input_channels = [[self.input_channels+1,64],[64,128],[128,256],[256,512]]
@@ -51,7 +52,6 @@ class Unet(tf.keras.layers.Layer):
       else :
         for layer in conv :
           x = layer(x)
-      #print(tf.shape(x))
     skips.reverse()
     # Non-skip connection
     for conv in self.non_skip_layers :

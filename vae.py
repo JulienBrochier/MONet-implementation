@@ -2,18 +2,19 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 class Vae(tf.keras.layers.Layer):
-  def __init__ (self,input_width,input_channels,encoded_size):
+  def __init__ (self,input_width,input_channels,encoded_size,batch_size):
     super(Vae, self).__init__()
     self.input_width = input_width
     self.input_channels = input_channels
     self.encoded_size = encoded_size
+    self.batch_size = batch_size
     self.inference_net = tf.keras.Sequential([
         tf.keras.layers.InputLayer(input_shape=[self.input_width,self.input_width,self.input_channels+1]),
-        tf.keras.layers.Conv2D(32, 3, strides=1,
+        tf.keras.layers.Conv2D(32, 3, strides=2,
                     padding='valid', activation=tf.nn.leaky_relu),
         tf.keras.layers.Conv2D(32, 3, strides=2,
                     padding='valid', activation=tf.nn.leaky_relu),
-        tf.keras.layers.Conv2D(64, 3, strides=1,
+        tf.keras.layers.Conv2D(64, 3, strides=2,
                     padding='valid', activation=tf.nn.leaky_relu),
         tf.keras.layers.Conv2D(64, 3, strides=2,
                     padding='valid', activation=tf.nn.leaky_relu),
@@ -37,8 +38,8 @@ class Vae(tf.keras.layers.Layer):
     approx_posterior = self.encoder(inp)
     #print('unet trainable weights:', len(layers.trainable_weights))
     tiled_output = self.spatial_broadcast(approx_posterior.sample())
-    decoder_likelihood, vae_mask = self.decoder(tiled_output, scale)
-    return approx_posterior, decoder_likelihood, vae_mask
+    likelihood, mask = self.decoder(tiled_output, scale)
+    return approx_posterior, likelihood, mask
 
   def prior(self):
     return tfp.distributions.Independent(tfp.distributions.Normal(loc=tf.zeros(self.encoded_size), scale=1),
@@ -59,6 +60,6 @@ class Vae(tf.keras.layers.Layer):
 
   def decoder(self, x, scale):
     x = self.generative_net(x)
-    image = tfp.distributions.Normal(loc=x[...,:self.input_channels], scale=scale)
+    likelihood = tfp.distributions.Normal(loc=x[...,:self.input_channels], scale=scale)
     mask = tfp.distributions.Bernoulli(logits=x[...,self.input_channels:])    
-    return image, mask
+    return likelihood, mask
