@@ -98,7 +98,7 @@ class Monet(tf.keras.Model):
     self.first_loss.append(l1)
     self.second_loss.append(l2)
     self.third_loss.append(l3)
-    print("L1 = {}, L2 = {}, L3 = {}".format(l1,l2,l3))
+    #print("L1 = {}, L2 = {}, L3 = {}".format(l1,l2,l3))
 
     return l1 + l3 #+ l2
 
@@ -120,8 +120,8 @@ class Monet(tf.keras.Model):
         scale_identity_multiplier=1.0)
 
   def fit(self,dataset,save_path=None):
-    i=1
-    for batch in dataset.as_numpy_iterator():
+    for step, batch in enumerate(dataset):
+      i=step+1
       t0 = time.time()
       self.compute_apply_gradient(batch)
       if save_path and i%50==0:
@@ -129,7 +129,6 @@ class Monet(tf.keras.Model):
         print("Training {} to {} : {}sec".format(i-50,i,time.time()-t0))
         print("L1 = {}, L2 = {}, L3 = {}".format(self.first_loss[-1], self.second_loss[-1], self.third_loss[-1]))
         t0 = time.time()   
-      i = i+1
     return self.first_loss, self.second_loss, self.third_loss
 
 

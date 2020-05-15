@@ -74,7 +74,7 @@ print("Dataset Creation : {} sec".format(time.time()-t0))
 
 input_width = 128
 input_channels = 1
-save_path = './checkpoints/my_checkpoint'
+save_path = './checkpoints/new_checkpoint'
 
 t0 = time.time()
 monet = Monet(input_width, input_channels=1, nb_scopes=5, batch_size=batch_size)
