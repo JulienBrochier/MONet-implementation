@@ -48,12 +48,12 @@ class Monet(tf.keras.Model):
         log_mk, log_sk = self.unet(image,log_sk)
       x = tf.keras.layers.concatenate([log_mk,image])
       # VAE
-      [approx_posterior,decoder_likelihood,vae_mask] = self.vae(x, scale)
+      [approx_posterior,reconstructed_image_distrib,reconstructed_mask_distrib] = self.vae(x, scale)
       scale = 0.11
       # Store outputs
       unet_masks.append(tf.exp(log_mk))
-      vae_masks.append(vae_mask.sample())
-      reconstructed_imgs.append(decoder_likelihood.sample())
+      vae_masks.append(reconstructed_mask_distrib.sample())
+      reconstructed_imgs.append(reconstructed_image_distrib.sample())
 
     return unet_masks, vae_masks, reconstructed_imgs
 
@@ -83,11 +83,11 @@ class Monet(tf.keras.Model):
         log_mk, log_sk = self.unet(image,log_sk)
       x = tf.keras.layers.concatenate([log_mk,image])
       # VAE
-      [approx_posterior,decoder_likelihood,vae_mask] = self.vae(x, scale)
+      [approx_posterior,reconstructed_image_distrib,reconstructed_mask_distrib] = self.vae(x, scale)
       # l1 and l2 computation
-      l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * decoder_likelihood.prob(image))
+      l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * reconstructed_image_distrib.prob(image))
       l2 += tfp.distributions.kl_divergence(approx_posterior,prior)
-      l3 += tf.math.exp(log_mk) * (log_mk - vae_mask.log_prob(image))
+      l3 += tf.math.exp(log_mk) * (log_mk - reconstructed_mask_distrib.log_prob(image))
 
       scale = 0.11 #The "background" component scale, 0.09 at the first iteration, then 0.11
 
@@ -119,7 +119,7 @@ class Monet(tf.keras.Model):
         loc=tf.zeros([self.encoded_size]),
         scale_identity_multiplier=1.0)
 
-  def fit(self,dataset,save_path=None):
+  def fit(self,dataset,save_path=None,summary_writer=None):
     for step, batch in enumerate(dataset):
       i=step+1
       t0 = time.time()
@@ -128,7 +128,10 @@ class Monet(tf.keras.Model):
         self.save_weights(save_path+str(i//50))
         print("Training {} to {} : {}sec".format(i-50,i,time.time()-t0))
         print("L1 = {}, L2 = {}, L3 = {}".format(self.first_loss[-1], self.second_loss[-1], self.third_loss[-1]))
-        t0 = time.time()   
+        t0 = time.time()
+        with summary_writer.as_default():
+          tf.summary.scalar('loss', self.first_loss[-1]+self.second_loss[-1][0]+self.third_loss[-1], step=i)
+
     return self.first_loss, self.second_loss, self.third_loss
 
 

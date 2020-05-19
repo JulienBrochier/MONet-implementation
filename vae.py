@@ -38,8 +38,8 @@ class Vae(tf.keras.layers.Layer):
     approx_posterior = self.encoder(inp)
     #print('unet trainable weights:', len(layers.trainable_weights))
     tiled_output = self.spatial_broadcast(approx_posterior.sample())
-    likelihood, mask = self.decoder(tiled_output, scale)
-    return approx_posterior, likelihood, mask
+    reconstructed_image_distrib, reconstructed_mask_distrib = self.decoder(tiled_output, scale)
+    return approx_posterior, reconstructed_image_distrib, reconstructed_mask_distrib
 
   def prior(self):
     return tfp.distributions.Independent(tfp.distributions.Normal(loc=tf.zeros(self.encoded_size), scale=1),
@@ -60,6 +60,6 @@ class Vae(tf.keras.layers.Layer):
 
   def decoder(self, x, scale):
     x = self.generative_net(x)
-    likelihood = tfp.distributions.Normal(loc=x[...,:self.input_channels], scale=scale)
-    mask = tfp.distributions.Bernoulli(logits=x[...,self.input_channels:])    
-    return likelihood, mask
+    reconstructed_image_distrib = tfp.distributions.Normal(loc=x[...,:self.input_channels], scale=scale)
+    reconstructed_mask_distrib = tfp.distributions.Bernoulli(logits=x[...,self.input_channels:])    
+    return reconstructed_image_distrib, reconstructed_mask_distrib

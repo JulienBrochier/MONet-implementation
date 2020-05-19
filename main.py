@@ -7,7 +7,7 @@
 
 import tensorflow as tf
 import tensorflow_probability as tfp
-
+import datetime
 import os
 import time
 from matplotlib import pyplot as plt
@@ -76,10 +76,15 @@ input_width = 128
 input_channels = 1
 save_path = './checkpoints/new_checkpoint'
 
+# For Tensorboard
+current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+log_dir = 'logs/gradient_tape/' + current_time + '/train'
+summary_writer = tf.summary.create_file_writer(log_dir)
+
 t0 = time.time()
 monet = Monet(input_width, input_channels=1, nb_scopes=5, batch_size=batch_size)
 print("Model Creation : {} sec".format(time.time()-t0))
-L1,L2,L3 = monet.fit(ds.prefetch(tf.data.experimental.AUTOTUNE), save_path=save_path)
+L1,L2,L3 = monet.fit(ds.prefetch(tf.data.experimental.AUTOTUNE), save_path=save_path, summary_writer=summary_writer)
 #plot_loss(L1,L2,L3)
 
 #show_evolution(save_path,dataset,input_channels,batch_size)
