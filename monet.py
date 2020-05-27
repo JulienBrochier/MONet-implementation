@@ -95,10 +95,15 @@ class Monet(tf.keras.Model):
       log_mktilda = reconstructed_mask_distrib.log_prob(image)
       l3 += tf.reduce_mean(tf.math.exp(log_mk) * (log_mk - log_mktilda))
       ##
-      print("log_mk={}".format(tf.math.reduce_mean(log_mk)))
-      print("log_sk={}".format(tf.math.reduce_mean(log_sk)))
-      print("i={}".format(i))
-      print("reconstructed_image={}".format(tf.math.reduce_mean(reconstructed_image_distrib.sample())))
+      #print("log_mk={}".format(tf.math.reduce_mean(log_mk)))
+      #print("log_sk={}".format(tf.math.reduce_mean(log_sk)))
+      #print("i={}".format(i))
+      #print("reconstructed_image={}".format(tf.math.reduce_mean(reconstructed_image_distrib.sample())))
+      ##
+      #print("log_Pk={}".format(reconstructed_mask_distrib.log_prob(image)))
+      #print("log_Qk={}".format(log_mk))
+      #print("div={}".format(log_mk - reconstructed_mask_distrib.log_prob(image)))
+      #print("mk={}".format(tf.reduce_mean(tf.math.exp(log_mk))))
       print("L1 = {}, L2 = {}, L3 = {}".format(l1,l2,l3))
       print()
       i+=1
