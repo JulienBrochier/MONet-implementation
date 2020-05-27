@@ -75,25 +75,38 @@ class Monet(tf.keras.Model):
     prior = self.make_mixture_prior()
 
     ## Iterate through the scopes
-    for i in range(self.nb_scopes):
+    i=0
+    while i<self.nb_scopes and tf.math.exp(tf.math.reduce_mean(log_sk)) != 0.0 :
+      print("i={}".format(i))
       # Attention Network
       if(i==self.nb_scopes-1):
         log_mk = log_sk
+        i=self.nb_scopes-1
+        print("last_scope")
       else:
         log_mk, log_sk = self.unet(image,log_sk)
       x = tf.keras.layers.concatenate([log_mk,image])
       # VAE
+      print("log_mk={}".format(tf.reduce_mean(log_mk)))
       [approx_posterior,reconstructed_image_distrib,reconstructed_mask_distrib] = self.vae(x, scale)
       # l1 and l2 computation
-      l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * reconstructed_image_distrib.prob(image))
-      l2 += tfp.distributions.kl_divergence(approx_posterior,prior)
-      l3 += tf.math.exp(log_mk) * (log_mk - reconstructed_mask_distrib.log_prob(image))
-
+      l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * tf.cast(reconstructed_image_distrib.sample(), tf.float32))
+      l2 += tfp.distributions.kl_divergence(approx_posterior,prior)[0]
+      log_mktilda = reconstructed_mask_distrib.log_prob(image)
+      l3 += tf.reduce_mean(tf.math.exp(log_mk) * (log_mk - log_mktilda))
+      ##
+      print("log_mk={}".format(tf.math.reduce_mean(log_mk)))
+      print("log_sk={}".format(tf.math.reduce_mean(log_sk)))
+      print("i={}".format(i))
+      print("reconstructed_image={}".format(tf.math.reduce_mean(reconstructed_image_distrib.sample())))
+      print("L1 = {}, L2 = {}, L3 = {}".format(l1,l2,l3))
+      print()
+      i+=1
       scale = 0.11 #The "background" component scale, 0.09 at the first iteration, then 0.11
 
     l1 = -tf.math.log(l1)
     l2 = self.beta * l2
-    l3 = tf.reduce_mean(self.gamma * l3)
+    l3 = self.gamma * l3
     # Loss lists will be used by self.fit()
     self.first_loss.append(l1)
     self.second_loss.append(l2)
@@ -123,14 +136,19 @@ class Monet(tf.keras.Model):
     for step, batch in enumerate(dataset):
       i=step+1
       t0 = time.time()
+      print("step={}".format(i))
       self.compute_apply_gradient(batch)
+      ##
+      #print("L1 = {}, L2 = {}, L3 = {}".format(self.first_loss[-1], self.second_loss[-1], self.third_loss[-1]))
       if save_path and i%50==0:
         self.save_weights(save_path+str(i//50))
         print("Training {} to {} : {}sec".format(i-50,i,time.time()-t0))
         print("L1 = {}, L2 = {}, L3 = {}".format(self.first_loss[-1], self.second_loss[-1], self.third_loss[-1]))
         t0 = time.time()
         with summary_writer.as_default():
-          tf.summary.scalar('loss', self.first_loss[-1]+self.second_loss[-1][0]+self.third_loss[-1], step=i)
+          tf.summary.scalar('l1', self.first_loss[-1], step=i)
+          tf.summary.scalar('l2', self.second_loss[-1], step=i)
+          tf.summary.scalar('l3', self.third_loss[-1], step=i)
 
     return self.first_loss, self.second_loss, self.third_loss
 
