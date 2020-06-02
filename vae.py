@@ -35,10 +35,13 @@ class Vae(tf.keras.layers.Layer):
     ])
 
   def call(self, inp, scale):
+    #print("vae_inp={}".format(tf.reduce_mean(inp)))
     approx_posterior = self.encoder(inp)
-    #print('unet trainable weights:', len(layers.trainable_weights))
-    tiled_output = self.spatial_broadcast(approx_posterior.sample())
+    approx_prior_sample = approx_posterior.sample()
+    #print("approx_prior_sample={}".format(tf.reduce_mean(approx_prior_sample)))
+    tiled_output = self.spatial_broadcast(approx_prior_sample)
     reconstructed_image_distrib, reconstructed_mask_distrib = self.decoder(tiled_output, scale)
+    #print("approx_posterior={}".format(tf.reduce_mean(approx_posterior))
     return approx_posterior, reconstructed_image_distrib, reconstructed_mask_distrib
 
   def prior(self):
@@ -56,6 +59,7 @@ class Vae(tf.keras.layers.Layer):
     x_channel = tf.reshape(x_channel, [1,self.input_width+8, self.input_width+8, 1])
     y_channel = tf.reshape(y_channel, [1,self.input_width+8, self.input_width+8, 1])
     output = tf.keras.layers.Concatenate()([x, x_channel, y_channel])
+    #print("spatial_broadcast_output={}".format(tf.reduce_mean(output)))
     return output
 
   def decoder(self, x, scale):

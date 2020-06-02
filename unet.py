@@ -44,7 +44,6 @@ class Unet(tf.keras.layers.Layer):
   def call(self, inp, log_sk):
     skips=[]
     x = tf.keras.layers.Concatenate()([inp,log_sk])
-    print("x_unet_mean={}".format(tf.reduce_mean(x)))
     # Downsampling
     for conv in self.downsampling_layers :
       if isinstance(conv, tf.keras.layers.MaxPool2D):
@@ -71,13 +70,8 @@ class Unet(tf.keras.layers.Layer):
           x= layer(x)
     # Final Conv & Softmax
     for conv in self.final_layers :
-      print("x={}".format(tf.reduce_mean(x)))
-      print("x_count_non_zero={}".format(tf.math.count_nonzero(x)))
       x = conv(x)
     ak = tf.split(x,2,-1)[0]
-    print("ak_mean={}".format(tf.reduce_mean(ak)))
-    print("ak_count_non_zero={}".format(tf.math.count_nonzero(ak)))
-    print("mean_log_ak={}".format(tf.reduce_mean(tf.math.log(ak))))
     return self.compute_new_scope_and_mask(ak, log_sk)
 
   def get_conv(self,output_channels, filters_shape, nb_input_features, apply_batchnorm=True):

@@ -15,6 +15,8 @@ from IPython import display
 from dataset_generator import Data
 from monet import Monet
 
+tf.random.set_seed(432100)
+
 def plot_loss(L1,L2,L3):
     plt.figure()
     # L1
@@ -78,7 +80,7 @@ save_path = './checkpoints/new_checkpoint'
 
 # For Tensorboard
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-log_dir = 'logs/gradient_tape/' + current_time + '/train'
+log_dir = 'logs/' + current_time +"/train"
 summary_writer = tf.summary.create_file_writer(log_dir)
 
 t0 = time.time()
@@ -88,7 +90,7 @@ L1,L2,L3 = monet.fit(ds.prefetch(tf.data.experimental.AUTOTUNE), save_path=save_
 #plot_loss(L1,L2,L3)
 
 #show_evolution(save_path,dataset,input_channels,batch_size)
-
+#monet.summary()
 
 """ print("trainable variables :")
 print("unet : {}".format(len(monet.unet.trainable_variables)))

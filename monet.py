@@ -77,35 +77,22 @@ class Monet(tf.keras.Model):
     ## Iterate through the scopes
     i=0
     while i<self.nb_scopes and tf.math.exp(tf.math.reduce_mean(log_sk)) != 0.0 :
-      print("i={}".format(i))
       # Attention Network
       if(i==self.nb_scopes-1):
         log_mk = log_sk
         i=self.nb_scopes-1
-        print("last_scope")
       else:
         log_mk, log_sk = self.unet(image,log_sk)
       x = tf.keras.layers.concatenate([log_mk,image])
       # VAE
-      print("log_mk={}".format(tf.reduce_mean(log_mk)))
       [approx_posterior,reconstructed_image_distrib,reconstructed_mask_distrib] = self.vae(x, scale)
       # l1 and l2 computation
       l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * tf.cast(reconstructed_image_distrib.sample(), tf.float32))
       l2 += tfp.distributions.kl_divergence(approx_posterior,prior)[0]
       log_mktilda = reconstructed_mask_distrib.log_prob(image)
-      l3 += tf.reduce_mean(tf.math.exp(log_mk) * (log_mk - log_mktilda))
-      ##
-      #print("log_mk={}".format(tf.math.reduce_mean(log_mk)))
-      #print("log_sk={}".format(tf.math.reduce_mean(log_sk)))
-      #print("i={}".format(i))
-      #print("reconstructed_image={}".format(tf.math.reduce_mean(reconstructed_image_distrib.sample())))
-      ##
-      #print("log_Pk={}".format(reconstructed_mask_distrib.log_prob(image)))
-      #print("log_Qk={}".format(log_mk))
-      #print("div={}".format(log_mk - reconstructed_mask_distrib.log_prob(image)))
-      #print("mk={}".format(tf.reduce_mean(tf.math.exp(log_mk))))
+      l3 += tf.reduce_mean(tf.math.exp(log_mk) * (log_mk - log_mktilda - tf.reduce_mean(log_mktilda)))
+
       print("L1 = {}, L2 = {}, L3 = {}".format(l1,l2,l3))
-      print()
       i+=1
       scale = 0.11 #The "background" component scale, 0.09 at the first iteration, then 0.11
 
@@ -116,11 +103,10 @@ class Monet(tf.keras.Model):
     self.first_loss.append(l1)
     self.second_loss.append(l2)
     self.third_loss.append(l3)
-    #print("L1 = {}, L2 = {}, L3 = {}".format(l1,l2,l3))
 
-    return l1 + l3 #+ l2
+    return l1 + l3
 
-  #@tf.function
+  @tf.function
   def compute_apply_gradient(self, batch):
     with tf.GradientTape() as tape:
       loss = self.compute_loss(batch)
@@ -128,7 +114,7 @@ class Monet(tf.keras.Model):
     self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
 
   def make_mixture_prior(self):
-    """c
+    """
     returns a probability distribution of a multivariate 
     normal law for the prior
     Returns p(x)
@@ -143,8 +129,6 @@ class Monet(tf.keras.Model):
       t0 = time.time()
       print("step={}".format(i))
       self.compute_apply_gradient(batch)
-      ##
-      #print("L1 = {}, L2 = {}, L3 = {}".format(self.first_loss[-1], self.second_loss[-1], self.third_loss[-1]))
       if save_path and i%50==0:
         self.save_weights(save_path+str(i//50))
         print("Training {} to {} : {}sec".format(i-50,i,time.time()-t0))
