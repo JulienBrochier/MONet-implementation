@@ -63,16 +63,12 @@ def show_evolution(save_path, dataset, input_channels, batch_size):
         plt.imshow(img)
     plt.show()
 
-    #print(untrained_model.compute_loss(raw_img))
-    #print(trained_model.compute_loss(raw_img))
-
-
-batch_size = 1
+batch_size = 20
 path = os.getcwd()
 data_dir = os.path.join(path,"Data")
 t0 = time.time()
 ds = Data(data_dir,batch_size).images_ds
-print("Dataset Creation : {} sec".format(time.time()-t0))
+print("Dataset created in : {} sec".format(time.time()-t0))
 
 input_width = 128
 input_channels = 1
@@ -85,17 +81,9 @@ summary_writer = tf.summary.create_file_writer(log_dir)
 
 t0 = time.time()
 monet = Monet(input_width, input_channels=1, nb_scopes=5, batch_size=batch_size)
-print("Model Creation : {} sec".format(time.time()-t0))
+print("Model created in : {} sec".format(time.time()-t0))
 L1,L2,L3 = monet.fit(ds.prefetch(tf.data.experimental.AUTOTUNE), save_path=save_path, summary_writer=summary_writer)
-#plot_loss(L1,L2,L3)
 
-#show_evolution(save_path,dataset,input_channels,batch_size)
-#monet.summary()
-
-""" print("trainable variables :")
-print("unet : {}".format(len(monet.unet.trainable_variables)))
-print("vae : {}".format(len(monet.vae.trainable_variables)))
-print("monet : {}".format(len(monet.trainable_variables))) """
 
 
 

@@ -63,7 +63,7 @@ class Monet(tf.keras.Model):
     """
     scale = 0.09  #The "background" component scale, 0.09 at the first iteration, then 0.11 (MONet-$B.1-ComponentVAE)
     # Initialize the first scope
-    s0 = tf.ones([1,self.input_width,self.input_width,1], dtype=tf.dtypes.float32)
+    s0 = tf.ones([self.batch_size,self.input_width,self.input_width,1], dtype=tf.dtypes.float32)
     log_sk= tf.math.log(s0)
     # List to store Unet and VAE masks'
     l_log_mk = []
@@ -90,7 +90,8 @@ class Monet(tf.keras.Model):
       l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * tf.cast(reconstructed_image_distrib.sample(), tf.float32))
       l2 += tfp.distributions.kl_divergence(approx_posterior,prior)[0]
       log_mktilda = reconstructed_mask_distrib.log_prob(image)
-      l3 += tf.reduce_mean(tf.math.exp(log_mk) * (log_mk - log_mktilda - tf.reduce_mean(log_mktilda)))
+      log_mktilda_normalised = (log_mktilda - tf.reduce_min(log_mktilda))/tf.reduce_max(log_mktilda)
+      l3 += tf.reduce_mean(tf.math.exp(log_mk) * (log_mk - log_mktilda_normalised))
 
       print("L1 = {}, L2 = {}, L3 = {}".format(l1,l2,l3))
       i+=1
@@ -106,7 +107,7 @@ class Monet(tf.keras.Model):
 
     return l1 + l3
 
-  @tf.function
+  #@tf.function
   def compute_apply_gradient(self, batch):
     with tf.GradientTape() as tape:
       loss = self.compute_loss(batch)
@@ -127,7 +128,6 @@ class Monet(tf.keras.Model):
     for step, batch in enumerate(dataset):
       i=step+1
       t0 = time.time()
-      print("step={}".format(i))
       self.compute_apply_gradient(batch)
       if save_path and i%50==0:
         self.save_weights(save_path+str(i//50))
