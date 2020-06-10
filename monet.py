@@ -85,10 +85,13 @@ class Monet(tf.keras.Model):
       # VAE
       [approx_posterior,reconstructed_image_distrib,reconstructed_mask_distrib] = self.vae(x, scale)
       # l1 computation
+      t_l1 = time.time()
       l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * tf.cast(reconstructed_image_distrib.prob(image), tf.float32))
+      print("Incrémentation de l1 : {}sec".format(time.time()-t_l1))
       # Store outputs for l3 computation
       l_mktilda.append(reconstructed_mask_distrib.prob(image))
       l_log_mk.append(log_mk)
+
       # Prepare next step
       i+=1
       scale = 0.11 #The "background" component scale, 0.09 at the first iteration, then 0.11
@@ -114,10 +117,14 @@ class Monet(tf.keras.Model):
 
   #@tf.function
   def compute_apply_gradient(self, batch):
+    t0 = time.time()
     with tf.GradientTape() as tape:
       loss = self.compute_loss(batch)
+    t1 = time.time()
     gradients = tape.gradient(loss, self.trainable_variables)
     self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+    print("Backpropagation en {}sec".format(time.time()-t1))
+    print("Batch traité en {}sec".format(time.time()-t0))
 
   def make_mixture_prior(self):
     """
@@ -132,11 +139,11 @@ class Monet(tf.keras.Model):
   def fit(self,dataset,save_path=None,summary_writer=None):
     for step, batch in enumerate(dataset):
       i=step+1
-      t0 = time.time()
+      #t0 = time.time()
       self.compute_apply_gradient(batch)
-      if save_path and i%5==0:
-        self.save_weights(save_path+str(i//5))
-        print("Training {} to {} : {}sec".format(i-5,i,time.time()-t0))
+      if save_path and i%50==0:
+        self.save_weights(save_path+str(i//50))
+        #print("Training {} to {} : {}sec".format(i-50,i,time.time()-t0))
         t0 = time.time()
         with summary_writer.as_default():
           tf.summary.scalar('l1', self.first_loss[-1], step=i)

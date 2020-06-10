@@ -4,6 +4,7 @@
 
 import tensorflow as tf
 import tensorflow_probability as tfp
+import time
 
 class Unet(tf.keras.layers.Layer):
   def __init__ (self,input_width, input_channels,batch_size):
@@ -42,6 +43,7 @@ class Unet(tf.keras.layers.Layer):
     self.final_layers.append(tf.keras.layers.Softmax(axis=-1))
 
   def call(self, inp, log_sk):
+    t_unet = time.time()
     skips=[]
     x = tf.keras.layers.Concatenate()([inp,log_sk])
     # Downsampling
@@ -72,7 +74,9 @@ class Unet(tf.keras.layers.Layer):
     for conv in self.final_layers :
       x = conv(x)
     ak = tf.split(x,2,-1)[0]
-    return self.compute_new_scope_and_mask(ak, log_sk)
+    output = self.compute_new_scope_and_mask(ak, log_sk)
+    print("Forward pass Unet : {}sec".format(time.time()-t_unet))
+    return output
 
   def get_conv(self,output_channels, filters_shape, nb_input_features, apply_batchnorm=True):
     stdev = tf.math.sqrt(2/(filters_shape**2*nb_input_features))

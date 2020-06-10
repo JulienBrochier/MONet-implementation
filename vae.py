@@ -1,5 +1,6 @@
 import tensorflow as tf
 import tensorflow_probability as tfp
+import time
 
 class Vae(tf.keras.layers.Layer):
   def __init__ (self,input_width,input_channels,encoded_size,batch_size):
@@ -35,10 +36,12 @@ class Vae(tf.keras.layers.Layer):
     ])
 
   def call(self, inp, scale):
+    t_vae = time.time()
     approx_posterior = self.encoder(inp)
     approx_prior_sample = approx_posterior.sample()
     tiled_output = self.spatial_broadcast(approx_prior_sample)
     reconstructed_image_distrib, reconstructed_mask_distrib = self.decoder(tiled_output, scale)
+    print("Forward pass VAE : {}sec".format(time.time()-t_vae))
     return approx_posterior, reconstructed_image_distrib, reconstructed_mask_distrib
 
   def prior(self):
