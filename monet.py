@@ -90,16 +90,21 @@ class Monet(tf.keras.Model):
       l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * tf.cast(reconstructed_image_distrib.sample(), tf.float32))
       l2 += tfp.distributions.kl_divergence(approx_posterior,prior)[0]
       log_mktilda = reconstructed_mask_distrib.log_prob(image)
-      log_mktilda_normalised = (log_mktilda - tf.reduce_min(log_mktilda))/tf.reduce_max(log_mktilda)
+      log_mktilda_normalised = log_mktilda/tf.reduce_sum(log_mktilda)
+      if(l1<0):
+        print("sample : {}".format(tf.reduce_mean(reconstructed_image_distrib.sample())))
+        print("L1 = {}".format(l1))
+      #print("log_mktilda_normalised : {}".format(tf.reduce_mean(log_mktilda_normalised)))
       l3 += tf.reduce_mean(tf.math.exp(log_mk) * (log_mk - log_mktilda_normalised))
 
-      print("L1 = {}, L2 = {}, L3 = {}".format(l1,l2,l3))
       i+=1
       scale = 0.11 #The "background" component scale, 0.09 at the first iteration, then 0.11
 
     l1 = -tf.math.log(l1)
     l2 = self.beta * l2
     l3 = self.gamma * l3
+    print("L1 = {}, L2 = {}, L3 = {}".format(l1,l2,l3))
+    print("Loss = {}".format(l1+l3))
     # Loss lists will be used by self.fit()
     self.first_loss.append(l1)
     self.second_loss.append(l2)
@@ -129,9 +134,9 @@ class Monet(tf.keras.Model):
       i=step+1
       t0 = time.time()
       self.compute_apply_gradient(batch)
-      if save_path and i%50==0:
-        self.save_weights(save_path+str(i//50))
-        print("Training {} to {} : {}sec".format(i-50,i,time.time()-t0))
+      if save_path and i%5==0:
+        self.save_weights(save_path+str(i//5))
+        print("Training {} to {} : {}sec".format(i-5,i,time.time()-t0))
         print("L1 = {}, L2 = {}, L3 = {}".format(self.first_loss[-1], self.second_loss[-1], self.third_loss[-1]))
         t0 = time.time()
         with summary_writer.as_default():
