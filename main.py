@@ -34,12 +34,12 @@ def plot_loss(L1,L2,L3):
     plt.show()
 
 def show_evolution(save_path, dataset, input_channels, batch_size):
+    """
+     Show masks and images obtained before and after training
+    """
     trained_model = Monet(image_width, input_channels=input_channels, nb_scopes=5, batch_size=batch_size)
     trained_model.load_weights(save_path)
     untrained_model = Monet(image_width, input_channels=1, nb_scopes=5, batch_size=1)
-
-    "Compute the first image, before and after training"
-
     test_batch = list(ds_test.take(1).as_numpy_iterator())[0]
     raw_img = tf.slice(test_batch,[0,0,0,0],[1,-1,-1,-1])
     untrained_output = untrained_model(raw_img)
@@ -54,7 +54,6 @@ def show_evolution(save_path, dataset, input_channels, batch_size):
         fig.suptitle(figure_titles[k])
         for i,imgs in enumerate([untrained_output[k], trained_ouput[k]]):
             for j in range(trained_model.nb_scopes):
-                #print(img)
                 img = tf.reshape(imgs[j],[128,128])
                 plt.subplot(trained_model.nb_scopes,2,(2*j)+i+1)
                 plt.axis('off')
@@ -66,10 +65,12 @@ def show_evolution(save_path, dataset, input_channels, batch_size):
         plt.imshow(img)
     plt.show()
 
-batch_size = 20
+# Image metadata
 image_width = 64
 input_channels = 1
 
+# Create Dataset
+batch_size = 20
 path = os.getcwd()
 data_dir = os.path.join(path,"Data")
 t0 = time.time()
@@ -77,6 +78,7 @@ ds_train = Data(data_dir+"/train",batch_size,image_width,input_channels).images_
 ds_test = Data(data_dir+"/test",batch_size,image_width,input_channels).images_ds
 print("Datasets created in : {} sec".format(time.time()-t0))
 
+# Path to save weights
 save_path = './checkpoints/new_checkpoint'
 
 # For Tensorboard
@@ -84,12 +86,9 @@ current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 log_dir = 'logs/' + current_time +"/train"
 summary_writer = tf.summary.create_file_writer(log_dir)
 
+# Create and fit the model
 t0 = time.time()
 monet = Monet(image_width, input_channels=1, nb_scopes=5, batch_size=batch_size)
 print("Model created in : {} sec".format(time.time()-t0))
 L1,L2,L3 = monet.fit(ds_train.prefetch(tf.data.experimental.AUTOTUNE), save_path=save_path, summary_writer=summary_writer)
-
-
-
-
 

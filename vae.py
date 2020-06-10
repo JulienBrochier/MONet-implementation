@@ -35,7 +35,6 @@ class Vae(tf.keras.layers.Layer):
     ])
 
   def call(self, inp, scale):
-    #print("vae_inp={}".format(tf.reduce_mean(inp)))
     approx_posterior = self.encoder(inp)
     approx_prior_sample = approx_posterior.sample()
     tiled_output = self.spatial_broadcast(approx_prior_sample)

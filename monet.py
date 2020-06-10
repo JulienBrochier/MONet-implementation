@@ -69,9 +69,7 @@ class Monet(tf.keras.Model):
     l_log_mk = []
     l_mktilda = []
     # Initialize loss
-    l1 = 0
-    l2 = 0
-    l3 = 0
+    l1 = 0.0
     prior = self.make_mixture_prior()
 
     ## Iterate through the scopes
@@ -100,7 +98,6 @@ class Monet(tf.keras.Model):
     print("L1 = {}, L3 = {}".format(l1,l3))
     # Loss lists will be used to plot the model evolution
     self.first_loss.append(l1)
-    self.second_loss.append(l2)
     self.third_loss.append(l3)
 
     return l1 + l3
@@ -140,11 +137,9 @@ class Monet(tf.keras.Model):
       if save_path and i%5==0:
         self.save_weights(save_path+str(i//5))
         print("Training {} to {} : {}sec".format(i-5,i,time.time()-t0))
-        #print("L1 = {}, L2 = {}, L3 = {}".format(self.first_loss[-1], self.second_loss[-1], self.third_loss[-1]))
         t0 = time.time()
         with summary_writer.as_default():
           tf.summary.scalar('l1', self.first_loss[-1], step=i)
-          tf.summary.scalar('l2', self.second_loss[-1], step=i)
           tf.summary.scalar('l3', self.third_loss[-1], step=i)
 
     return self.first_loss, self.second_loss, self.third_loss
