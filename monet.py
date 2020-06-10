@@ -67,7 +67,7 @@ class Monet(tf.keras.Model):
     log_sk= tf.math.log(s0)
     # List to store Unet and VAE masks'
     l_log_mk = []
-    l_vae_mask = []
+    l_mktilda = []
     # Initialize loss
     l1 = 0
     l2 = 0
@@ -89,28 +89,33 @@ class Monet(tf.keras.Model):
       # l1 and l2 computation
       l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * tf.cast(reconstructed_image_distrib.sample(), tf.float32))
       l2 += tfp.distributions.kl_divergence(approx_posterior,prior)[0]
-      log_mktilda = reconstructed_mask_distrib.log_prob(image)
-      log_mktilda_normalised = log_mktilda/tf.reduce_sum(log_mktilda)
-      if(l1<0):
-        print("sample : {}".format(tf.reduce_mean(reconstructed_image_distrib.sample())))
-        print("L1 = {}".format(l1))
-      #print("log_mktilda_normalised : {}".format(tf.reduce_mean(log_mktilda_normalised)))
-      l3 += tf.reduce_mean(tf.math.exp(log_mk) * (log_mk - log_mktilda_normalised))
-
+      # Store outputs for l3 computation
+      l_mktilda.append(reconstructed_mask_distrib.prob(image))
+      l_log_mk.append(log_mk)
+      # Prepare next step
       i+=1
       scale = 0.11 #The "background" component scale, 0.09 at the first iteration, then 0.11
 
     l1 = -tf.math.log(l1)
     l2 = self.beta * l2
-    l3 = self.gamma * l3
+    l3 = self.compute_third_loss(l_log_mk,l_mktilda)
     print("L1 = {}, L2 = {}, L3 = {}".format(l1,l2,l3))
-    print("Loss = {}".format(l1+l3))
-    # Loss lists will be used by self.fit()
+    # Loss lists will be used to plot the model evolution
     self.first_loss.append(l1)
     self.second_loss.append(l2)
     self.third_loss.append(l3)
 
     return l1 + l3
+
+  def compute_third_loss(self,l_log_mk,l_mktilda):
+    p = tf.keras.backend.concatenate(l_mktilda,axis=-1)
+    log_q = tf.keras.backend.concatenate(l_log_mk,axis=-1)
+    # Normalise p(c|x) so sum_over_K(p(c=k|x) = 1)
+    p_sum = tf.reduce_sum(p, axis=-1)
+    p = p / tf.expand_dims(p_sum, -1)
+    # Compute l3
+    l3 = self.gamma * tf.reduce_sum( tf.math.exp(log_q)*(log_q-tf.math.log(p)), axis=-1)
+    return tf.reduce_mean(l3)
 
   #@tf.function
   def compute_apply_gradient(self, batch):

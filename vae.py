@@ -64,5 +64,7 @@ class Vae(tf.keras.layers.Layer):
   def decoder(self, x, scale):
     x = self.generative_net(x)
     reconstructed_image_distrib = tfp.distributions.Normal(loc=x[...,:self.input_channels], scale=scale)
+    #print("x : {}".format(x[...,self.input_channels:]))
+    #print("x shape : {}".format(tf.shape(x[...,self.input_channels:])))
     reconstructed_mask_distrib = tfp.distributions.Bernoulli(logits=x[...,self.input_channels:])    
     return reconstructed_image_distrib, reconstructed_mask_distrib
