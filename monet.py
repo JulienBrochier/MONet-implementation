@@ -86,9 +86,8 @@ class Monet(tf.keras.Model):
       x = tf.keras.layers.concatenate([log_mk,image])
       # VAE
       [approx_posterior,reconstructed_image_distrib,reconstructed_mask_distrib] = self.vae(x, scale)
-      # l1 and l2 computation
-      l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * tf.cast(reconstructed_image_distrib.sample(), tf.float32))
-      l2 += tfp.distributions.kl_divergence(approx_posterior,prior)[0]
+      # l1 computation
+      l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * tf.cast(reconstructed_image_distrib.prob(image), tf.float32))
       # Store outputs for l3 computation
       l_mktilda.append(reconstructed_mask_distrib.prob(image))
       l_log_mk.append(log_mk)
@@ -97,9 +96,8 @@ class Monet(tf.keras.Model):
       scale = 0.11 #The "background" component scale, 0.09 at the first iteration, then 0.11
 
     l1 = -tf.math.log(l1)
-    l2 = self.beta * l2
     l3 = self.compute_third_loss(l_log_mk,l_mktilda)
-    print("L1 = {}, L2 = {}, L3 = {}".format(l1,l2,l3))
+    print("L1 = {}, L3 = {}".format(l1,l3))
     # Loss lists will be used to plot the model evolution
     self.first_loss.append(l1)
     self.second_loss.append(l2)
@@ -142,7 +140,7 @@ class Monet(tf.keras.Model):
       if save_path and i%5==0:
         self.save_weights(save_path+str(i//5))
         print("Training {} to {} : {}sec".format(i-5,i,time.time()-t0))
-        print("L1 = {}, L2 = {}, L3 = {}".format(self.first_loss[-1], self.second_loss[-1], self.third_loss[-1]))
+        #print("L1 = {}, L2 = {}, L3 = {}".format(self.first_loss[-1], self.second_loss[-1], self.third_loss[-1]))
         t0 = time.time()
         with summary_writer.as_default():
           tf.summary.scalar('l1', self.first_loss[-1], step=i)
