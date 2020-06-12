@@ -11,7 +11,7 @@ class Data():
         self.image_width = image_width
         self.input_channels = input_channels
         self.list_ds = tf.data.Dataset.list_files(data_dir+"*.png")
-        self.images_ds = self.list_ds.map(self.parse_image).batch(batch_size) #.cache()
+        self.images_ds = self.list_ds.map(self.parse_image).batch(batch_size).cache()
 
     def parse_image(self,filename):
         image = tf.io.read_file(filename)

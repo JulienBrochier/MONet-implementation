@@ -1,13 +1,18 @@
+# https://blog.tensorflow.org/2019/03/variational-autoencoders-with.html
+# https://www.tensorflow.org/tutorials/generative/cvae
 # https://www.tensorflow.org/guide/keras/custom_layers_and_models
 # https://www.tensorflow.org/tutorials/generative/pix2pix
 # https://www.tensorflow.org/tutorials/keras/save_and_load
 # https://www.tensorflow.org/guide/checkpoint
+# https://www.tensorflow.org/guide/function
 
 import tensorflow as tf
 import tensorflow_probability as tfp
 from unet import Unet
 from vae import Vae
 import time
+import os
+from termcolor import colored
 
 class Monet(tf.keras.Model):
   def __init__ (self, input_width, input_channels, nb_scopes, batch_size):
@@ -61,6 +66,7 @@ class Monet(tf.keras.Model):
     """
     Forward Pass + Loss Computation
     """
+    print(colored("Nouvel appel à self.compute_loss()","yellow"))
     scale = 0.09  #The "background" component scale, 0.09 at the first iteration, then 0.11 (MONet-$B.1-ComponentVAE)
     # Initialize the first scope
     s0 = tf.ones([self.batch_size,self.input_width,self.input_width,1], dtype=tf.dtypes.float32)
@@ -70,30 +76,29 @@ class Monet(tf.keras.Model):
     l_mktilda = []
     # Initialize loss
     l1 = 0.0
+    l3 = 0.0
     prior = self.make_mixture_prior()
 
     ## Iterate through the scopes
     i=0
-    while i<self.nb_scopes and tf.math.exp(tf.math.reduce_mean(log_sk)) != 0.0 :
+    for i in range(self.nb_scopes):
+      sk = tf.math.exp(log_sk)
+      sk = tf.keras.backend.clip(sk,tf.keras.backend.epsilon(),None)
+      log_sk = tf.math.log(sk)
       # Attention Network
       if(i==self.nb_scopes-1):
         log_mk = log_sk
-        i=self.nb_scopes-1
       else:
         log_mk, log_sk = self.unet(image,log_sk)
       x = tf.keras.layers.concatenate([log_mk,image])
       # VAE
       [approx_posterior,reconstructed_image_distrib,reconstructed_mask_distrib] = self.vae(x, scale)
       # l1 computation
-      t_l1 = time.time()
-      l1 += tf.math.reduce_mean(tf.math.exp(log_mk) * tf.cast(reconstructed_image_distrib.prob(image), tf.float32))
-      print("Incrémentation de l1 : {}sec".format(time.time()-t_l1))
+      l1 += tf.math.reduce_mean(tf.math.exp(log_mk)) #* tf.cast(reconstructed_image_distrib.prob(image), tf.float32))
       # Store outputs for l3 computation
       l_mktilda.append(reconstructed_mask_distrib.prob(image))
       l_log_mk.append(log_mk)
 
-      # Prepare next step
-      i+=1
       scale = 0.11 #The "background" component scale, 0.09 at the first iteration, then 0.11
 
     l1 = -tf.math.log(l1)
@@ -115,20 +120,21 @@ class Monet(tf.keras.Model):
     l3 = self.gamma * tf.reduce_sum( tf.math.exp(log_q)*(log_q-tf.math.log(p)), axis=-1)
     return tf.reduce_mean(l3)
 
-  #@tf.function
+  @tf.function
   def compute_apply_gradient(self, batch):
     t0 = time.time()
     with tf.GradientTape() as tape:
       loss = self.compute_loss(batch)
     t1 = time.time()
     gradients = tape.gradient(loss, self.trainable_variables)
+    print("Tape gradient en {}sec".format(time.time()-t1))
     self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
     print("Backpropagation en {}sec".format(time.time()-t1))
     print("Batch traité en {}sec".format(time.time()-t0))
 
   def make_mixture_prior(self):
     """
-    returns a probability distribution of a multivariate 
+    Returns a probability distribution of a multivariate 
     normal law for the prior
     Returns p(x)
     """
@@ -139,17 +145,19 @@ class Monet(tf.keras.Model):
   def fit(self,dataset,save_path=None,summary_writer=None):
     for step, batch in enumerate(dataset):
       i=step+1
-      #t0 = time.time()
+      t0 = time.time()
+      print(colored("Step {} dans self.fit()".format(i),"yellow"))
       self.compute_apply_gradient(batch)
+      print("Durée du batch : {}sec".format(time.time()-t0))
       if save_path and i%50==0:
         self.save_weights(save_path+str(i//50))
-        #print("Training {} to {} : {}sec".format(i-50,i,time.time()-t0))
+        print("Training {} to {} : {}sec".format(i-50,i,time.time()-t0))
         t0 = time.time()
         with summary_writer.as_default():
           tf.summary.scalar('l1', self.first_loss[-1], step=i)
           tf.summary.scalar('l3', self.third_loss[-1], step=i)
 
-    return self.first_loss, self.second_loss, self.third_loss
+    return self.first_loss, self.third_loss
 
 
 

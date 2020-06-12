@@ -9,12 +9,14 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import datetime
 import os
+from termcolor import colored
 import time
 from matplotlib import pyplot as plt
 from IPython import display
 from dataset_generator import Data
 from monet import Monet
 
+os.system('color')
 tf.random.set_seed(432100)
 
 def plot_loss(L1,L2,L3):
