@@ -76,7 +76,6 @@ class Monet(tf.keras.Model):
     l_mktilda = []
     # Initialize loss
     l1 = 0.0
-    l3 = 0.0
     prior = self.make_mixture_prior()
 
     ## Iterate through the scopes

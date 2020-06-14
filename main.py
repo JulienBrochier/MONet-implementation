@@ -17,7 +17,6 @@ from dataset_generator import Data
 from monet import Monet
 
 os.system('color')
-tf.random.set_seed(432100)
 
 def plot_loss(L1,L2,L3):
     plt.figure()
@@ -93,4 +92,4 @@ t0 = time.time()
 monet = Monet(image_width, input_channels=1, nb_scopes=5, batch_size=batch_size)
 print("Model created in : {} sec".format(time.time()-t0))
 L1,L2,L3 = monet.fit(ds_train.prefetch(tf.data.experimental.AUTOTUNE), save_path=save_path, summary_writer=summary_writer)
-
+print("Fitting finished")
