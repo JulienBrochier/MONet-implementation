@@ -26,6 +26,7 @@ class Vae(tf.keras.layers.Layer):
                 self.encoded_size,
                 activity_regularizer=tfp.layers.KLDivergenceRegularizer(self.prior(), weight=1.0))
     ])
+    self.broadcasting_net = self.spatial_broadcast()
     self.generative_net = tf.keras.Sequential([
       tf.keras.layers.InputLayer(input_shape=[self.input_width+8,self.input_width+8,self.encoded_size+2]),
       tf.keras.layers.Conv2D(32, (3, 3), strides=1, activation='relu', padding='valid'),
@@ -38,8 +39,7 @@ class Vae(tf.keras.layers.Layer):
   def call(self, inp, scale):
     t_vae = time.time()
     approx_posterior = self.encoder(inp)
-    approx_prior_sample = approx_posterior.sample()
-    tiled_output = self.spatial_broadcast(approx_prior_sample)
+    tiled_output = self.broadcasting_net(approx_posterior.sample())
     reconstructed_image_distrib, reconstructed_mask_distrib = self.decoder(tiled_output, scale)
     print("Forward pass VAE : {}sec".format(time.time()-t_vae))
     return approx_posterior, reconstructed_image_distrib, reconstructed_mask_distrib
@@ -51,17 +51,18 @@ class Vae(tf.keras.layers.Layer):
   def encoder(self,x):
     return self.inference_net(x)
 
-  def spatial_broadcast(self,inp):
-    x=tf.reshape(inp,[self.batch_size,1,1,self.encoded_size])
-    x = tf.tile(x, [1,self.input_width+8,self.input_width+8,1])
+  def spatial_broadcast(self):
+    latent = tf.keras.layers.Input(shape=[self.encoded_size], name="latent_vector")
+    latent_reshaped = tf.keras.layers.Reshape((1, 1, self.encoded_size))(latent)
     line = tf.linspace(-1.0,1.0, self.input_width+8)
     ones = tf.ones(self.batch_size)
-    x_channel = tf.meshgrid(line, ones, line)[0]
-    y_channel = tf.meshgrid(line, ones, line)[2]
-    x_channel = tf.reshape(x_channel, [self.batch_size,self.input_width+8, self.input_width+8, 1])
-    y_channel = tf.reshape(y_channel, [self.batch_size,self.input_width+8, self.input_width+8, 1])
-    output = tf.keras.layers.Concatenate()([x, x_channel, y_channel])
-    return output
+    x_tile = tf.meshgrid(line, ones, line)[0]
+    y_tile = tf.meshgrid(line, ones, line)[2]
+    x_tile = tf.reshape(x_tile, [self.batch_size,self.input_width+8, self.input_width+8, 1])
+    y_tile = tf.reshape(y_tile, [self.batch_size,self.input_width+8, self.input_width+8, 1])
+    latent_broadcasted = tf.keras.layers.UpSampling2D((self.input_width+8,self.input_width+8))(latent_reshaped)
+    output = tf.keras.layers.Concatenate()([latent_broadcasted, x_tile, y_tile])
+    return tf.keras.Model(inputs=latent, outputs=output)
 
   def decoder(self, x, scale):
     x = self.generative_net(x)
