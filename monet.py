@@ -11,6 +11,7 @@ import tensorflow_probability as tfp
 from unet import Unet
 from vae import Vae
 import time
+import datetime
 import os
 from termcolor import colored
 
@@ -40,6 +41,7 @@ class Monet(tf.keras.Model):
     log_sk= tf.math.log(s0)
     scale = 0.09  #The "background" component scale, 0.09 at the first iteration, then 0.11 (MONet-$B.1-ComponentVAE)
 
+    # Model variables to be returned
     unet_masks = []
     vae_masks = []
     reconstructed_imgs = []
@@ -110,6 +112,9 @@ class Monet(tf.keras.Model):
     return l1 + l3
 
   def compute_third_loss(self,l_log_mk,l_mktilda):
+    """
+    gamma * Dkl( q(c|x) || p(c|x) )
+    """
     p = tf.keras.backend.concatenate(l_mktilda,axis=-1)
     log_q = tf.keras.backend.concatenate(l_log_mk,axis=-1)
     # Normalise p(c|x) so sum_over_K(p(c=k|x) = 1)
@@ -141,23 +146,50 @@ class Monet(tf.keras.Model):
         loc=tf.zeros([self.encoded_size]),
         scale_identity_multiplier=1.0)
 
-  def fit(self,dataset,save_path=None,summary_writer=None):
+  # def fit(self,dataset,save_path=None,summary_writer=None):
+  #   for step, batch in enumerate(dataset):
+  #     i=step+1
+  #     t0 = time.time()
+  #     print(colored("Step {} dans self.fit()".format(i),"yellow"))
+  #     self.compute_apply_gradient(batch)
+  #     print("Durée du batch : {}sec".format(time.time()-t0))
+  #     if save_path and i%50==0:
+  #       self.save_weights(save_path+str(i//50))
+  #       print("Training {} to {} : {}sec".format(i-50,i,time.time()-t0))
+  #       t0 = time.time()
+  #       with summary_writer.as_default():
+  #         tf.summary.scalar('l1', self.first_loss[-1], step=i)
+  #         tf.summary.scalar('l3', self.third_loss[-1], step=i)
+
+  #   return self.first_loss, self.third_loss
+
+
+  def fit(self,dataset,log_dir,save_path=None):
+    """
+    Train the model
+    """
+    # Prepare logs
+    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    summary_writer = tf.summary.create_file_writer(log_dir+"graph"+current_time)
     for step, batch in enumerate(dataset):
       i=step+1
       t0 = time.time()
       print(colored("Step {} dans self.fit()".format(i),"yellow"))
+      # Trace the graph created by the following compute_apply_gradient call
+      tf.summary.trace_on(graph=True, profiler=True)
+      # Core function
       self.compute_apply_gradient(batch)
+      # Export the graph traced
+      with summary_writer.as_default():
+        tf.summary.trace_export(
+          name="my_func_trace",
+          step=0,
+          profiler_outdir=log_dir+"graph"+current_time)
       print("Durée du batch : {}sec".format(time.time()-t0))
+      # Optionnaly save model weights
       if save_path and i%50==0:
         self.save_weights(save_path+str(i//50))
-        print("Training {} to {} : {}sec".format(i-50,i,time.time()-t0))
-        t0 = time.time()
-        with summary_writer.as_default():
-          tf.summary.scalar('l1', self.first_loss[-1], step=i)
-          tf.summary.scalar('l3', self.third_loss[-1], step=i)
 
     return self.first_loss, self.third_loss
-
-
 
     

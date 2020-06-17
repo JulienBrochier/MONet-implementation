@@ -23,7 +23,6 @@ class Unet(tf.keras.layers.Layer):
     self.upsampling_layers_input_channels = [[1024,512],[512,256],[256,128],[128,64]]
     self.final_layers = []
 
-    #first iteration : apply_batchnorm=false
     for output_channels, input_channels in zip(self.downsampling_layers_output_channels, self.downsampling_layers_input_channels) :
       self.downsampling_layers.append(self.get_conv(output_channels[0], 3, input_channels[0]))
       self.downsampling_layers.append(self.get_conv(output_channels[1], 3, input_channels[1]))
@@ -91,7 +90,9 @@ class Unet(tf.keras.layers.Layer):
     return result
 
   def compute_new_scope_and_mask(self,ak,log_sk):
-    # scope : part of the image that has already been masked
+    """
+    scope : part of the image that has already been masked
+    """
     log_mk = tf.math.log(ak)+log_sk
     log_sk = tf.math.log(1-ak)+log_sk
     return log_mk, log_sk

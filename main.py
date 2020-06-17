@@ -7,9 +7,9 @@
 
 import tensorflow as tf
 import tensorflow_probability as tfp
-import datetime
 import os
 from termcolor import colored
+import datetime
 import time
 from matplotlib import pyplot as plt
 from IPython import display
@@ -81,15 +81,12 @@ print("Datasets created in : {} sec".format(time.time()-t0))
 
 # Path to save weights
 save_path = './checkpoints/new_checkpoint'
-
 # For Tensorboard
-current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-log_dir = 'logs/' + current_time +"/train"
-summary_writer = tf.summary.create_file_writer(log_dir)
+log_dir = 'logs/'
 
-# Create and fit the model
+# Create the model
 t0 = time.time()
 monet = Monet(image_width, input_channels=1, nb_scopes=5, batch_size=batch_size)
 print("Model created in : {} sec".format(time.time()-t0))
-L1,L2,L3 = monet.fit(ds_train.prefetch(tf.data.experimental.AUTOTUNE), save_path=save_path, summary_writer=summary_writer)
-print("Fitting finished")
+# Training
+L1,L2,L3 = monet.fit(ds_train.prefetch(tf.data.experimental.AUTOTUNE), log_dir, save_path=save_path)
