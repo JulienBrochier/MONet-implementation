@@ -37,7 +37,7 @@ class Monet(tf.keras.Model):
     Forward Pass
     """
     # Initialize the first scope
-    s0 = tf.ones([1,self.input_width,self.input_width,self.input_channels], dtype=tf.dtypes.float32)
+    s0 = tf.ones([self.batch_size,self.input_width,self.input_width,self.input_channels], dtype=tf.dtypes.float32)
     log_sk= tf.math.log(s0)
     scale = 0.09  #The "background" component scale, 0.09 at the first iteration, then 0.11 (MONet-$B.1-ComponentVAE)
 
